@@ -8,8 +8,10 @@ group = "software.nmr"
 version = "1.0.0-SNAPSHOT"
 
 // Set the JVM language level used to build the project.
-kotlin {
-    jvmToolchain(21)
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
 }
 
 repositories {

@@ -8,26 +8,35 @@
     <name>Click_around</name>
 
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
-    <vendor url="https://www.yourcompany.com">YourCompany</vendor>
+    <vendor>Click Around</vendor>
 
-    <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
-         Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
     <description><![CDATA[
-        Enter short description for your plugin here.<br>
-        <em>most HTML tags may be used</em>
+        Navigate from XML element names and attribute values to Java classes and methods
+        annotated with configurable annotations.
         ]]></description>
 
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.java</depends>
 
-    <resource-bundle>messages.MyMessageBundle</resource-bundle>
-
-    <!-- Extensions defined by the plugin.
-         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow id="MyToolWindow" factoryClass="software.nmr.MyToolWindowFactory"
-                    icon="AllIcons.Toolwindows.ToolWindowPalette"/>
+        <applicationService
+                serviceImplementation="software.nmr.click_around.settings.AppSettings"/>
+
+        <applicationConfigurable
+                groupId="editor"
+                instance="software.nmr.click_around.settings.UI"
+                id="software.nmr.click_around.settings.app"
+                displayName="Click Around"/>
+        <projectConfigurable
+                groupId="editor"
+                instance="software.nmr.click_around.settings.UI"
+                id="software.nmr.click_around.settings"
+                nonDefaultProject="true"
+                displayName="Click Around (Project)"/>
+
+        <gotoDeclarationHandler
+                implementation="software.nmr.click_around.handlers.XmlToJavaGotoHandler"/>
     </extensions>
     
 </idea-plugin>
