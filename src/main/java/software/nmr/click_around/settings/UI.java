@@ -69,15 +69,13 @@ public class UI implements Configurable {
 
     @SuppressWarnings("UnstableApiUsage")
     private void addValidation() {
-        var invalid = new NavigationRule();
+        for (int i = 0; i < NavigationRuleTableModel.COL_COUNT; i++) {
+            if (!NavigationRuleTableModel.needValidation(i)) continue;
 
-        for (int i = 0; i < NavigationRule.FIELD_NAMES.length; i++) {
-            var fieldName = NavigationRule.FIELD_NAMES[i];
-            if (invalid.validateField(fieldName) == null) continue;
-
+            var finalI = i;
             var column = table.getColumnModel().getColumn(i);
             column.setCellRenderer(new ValidatingTableCellRendererWrapper(table.getDefaultRenderer(String.class))
-                    .withCellValidator((value, row, viewCol) -> tableModel.validate(row, fieldName)));
+                    .withCellValidator((value, row, viewCol) -> tableModel.validate(row, finalI)));
         }
 
         new CellTooltipManager(disposable)
@@ -115,8 +113,9 @@ public class UI implements Configurable {
 
         var out = new HashSet<NavigationRule>();
         for (var changed: tableModel.stateView()) {
-            var invalid = changed.firstInvalid();
-            if (invalid != null) throw new ConfigurationException("Invalid valid in column " + NavigationRule.localise(invalid));
+            var invalid = changed.from.firstInvalidField();
+            if (invalid == null) invalid = changed.to.firstInvalidField();
+            if (invalid != null) throw new ConfigurationException("Invalid valid in column " + invalid);
             out.add(changed.copy());
         }
         settings.rules = out; // atomic

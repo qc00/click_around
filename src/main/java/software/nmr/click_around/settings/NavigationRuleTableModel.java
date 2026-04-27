@@ -2,33 +2,25 @@ package software.nmr.click_around.settings;
 
 import com.intellij.openapi.ui.ValidationInfo;
 import org.jetbrains.annotations.Nls;
+import software.nmr.click_around.filters.AbsPsiFilter.Descriptor;
+import software.nmr.click_around.filters.JavaAnnotation;
+import software.nmr.click_around.filters.Xml;
 
 import javax.swing.table.AbstractTableModel;
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static software.nmr.click_around.settings.NavigationRule.FIELD_NAMES;
-
 public class NavigationRuleTableModel extends AbstractTableModel {
+    private static final Descriptor XML = Xml.DESC, JAVA = JavaAnnotation.DESC;
+    public static final int COL_COUNT = XML.getColumnCount() + JAVA.getColumnCount();
+    private static final int JAVA_START = XML.getColumnCount();
+    private static final NavigationRule INVALID = new NavigationRule();
+
     private final List<NavigationRule> rules;
-    private final Field[] fields;
 
     public NavigationRuleTableModel(Collection<NavigationRule> rules) {
         this.rules = new ArrayList<>(rules);
-
-        this.fields = new Field[FIELD_NAMES.length];
-        Class<?> clazz = NavigationRule.class;
-        for (int i = 0; i < FIELD_NAMES.length; i++) {
-            try {
-                Field f = clazz.getDeclaredField(FIELD_NAMES[i]);
-                f.setAccessible(true);
-                fields[i] = f;
-            } catch (NoSuchFieldException e) {
-                throw new RuntimeException(e);
-            }
-        }
     }
 
     public void reset(Collection<NavigationRule> rules) {
@@ -44,21 +36,21 @@ public class NavigationRuleTableModel extends AbstractTableModel {
 
     @Override
     public int getColumnCount() {
-        return FIELD_NAMES.length;
+        return COL_COUNT;
     }
 
     @Override
     public @Nls String getColumnName(int column) {
-        return NavigationRule.localise(FIELD_NAMES[column]);
+        return column < JAVA_START ? XML.getColumnName(column) : JAVA.getColumnName(column - JAVA_START);
     }
 
     public @Nls String getColumnTooltip(int column) {
-        return NavigationRule.localise(FIELD_NAMES[column] + ".tip");
+        return column < JAVA_START ? XML.getColumnTooltip(column) : JAVA.getColumnTooltip(column - JAVA_START);
     }
 
     @Override
-    public Class<?> getColumnClass(int columnIndex) {
-        return fields[columnIndex].getType();
+    public Class<?> getColumnClass(int column) {
+        return column < JAVA_START ? XML.getColumnClass(column) : JAVA.getColumnClass(column - JAVA_START);
     }
 
     @Override
@@ -69,22 +61,28 @@ public class NavigationRuleTableModel extends AbstractTableModel {
     @Override
     public Object getValueAt(int rowIndex, int columnIndex) {
         var rule = rules.get(rowIndex);
-        try {
-            return fields[columnIndex].get(rule);
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
+        return columnIndex < JAVA_START ? rule.from.arrayView()[columnIndex] : rule.to.arrayView()[columnIndex - JAVA_START];
     }
 
     @Override
     public void setValueAt(Object value, int rowIndex, int columnIndex) {
         var rule = rules.get(rowIndex);
-        try {
-            fields[columnIndex].set(rule, value);
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
+        if (columnIndex < JAVA_START) {
+            rule.from.arrayView()[columnIndex] = (String) value;
+        } else {
+            rule.to.arrayView()[columnIndex - JAVA_START] = (String) value;
         }
         fireTableCellUpdated(rowIndex, columnIndex);
+    }
+
+    public static boolean needValidation(int column) {
+        var issue = column < JAVA_START ? INVALID.from.validateField(column) : INVALID.to.validateField(column - JAVA_START);
+        return issue != null;
+    }
+
+    public ValidationInfo validate(int rowIndex, int column) {
+        var rule = rules.get(rowIndex);
+        return column < JAVA_START ? rule.from.validateField(column) : rule.to.validateField(column - JAVA_START);
     }
 
     public void addRule() {
@@ -98,10 +96,6 @@ public class NavigationRuleTableModel extends AbstractTableModel {
             rules.remove(rowIndex);
             fireTableRowsDeleted(rowIndex, rowIndex);
         }
-    }
-
-    public ValidationInfo validate(int row, String field) {
-        return rules.get(row).validateField(field);
     }
 
     /** Do not modify the collection. */
