@@ -3,25 +3,18 @@ package software.nmr.click_around.settings;
 import com.intellij.openapi.components.PersistentStateComponent;
 import org.jetbrains.annotations.NotNull;
 
-import java.lang.ref.WeakReference;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Objects;
-import java.util.Set;
+import java.util.LinkedHashSet;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Shared settings contents, serialisation and change notification.
+ * Shared settings fields, serialisation and change tracking (for invalidating caches).
  */
 public abstract class AbsSettings<Self extends AbsSettings<Self>> implements PersistentStateComponent<Self> {
-    public Set<NavigationRule> rules = new HashSet<>();
-    private final ArrayList<WeakReference<Runnable>> ruleChangeListeners = new ArrayList<>();
-
-    public void hookRules(Runnable listener) {
-        ruleChangeListeners.add(new WeakReference<>(listener));
-    }
+    public LinkedHashSet<NavigationRule> rules = new LinkedHashSet<>();
+    protected final AtomicInteger ruleVersion = new AtomicInteger(0);
 
     public void notifyRules() {
-        ruleChangeListeners.stream().map(WeakReference::get).filter(Objects::nonNull).forEach(Runnable::run);
+        ruleVersion.incrementAndGet();
     }
 
     @Override

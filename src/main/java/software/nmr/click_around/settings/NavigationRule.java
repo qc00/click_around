@@ -1,5 +1,6 @@
 package software.nmr.click_around.settings;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.intellij.util.xmlb.annotations.Tag;
 import software.nmr.click_around.filters.JavaAnnotation;
 import software.nmr.click_around.filters.Xml;
@@ -15,6 +16,7 @@ public class NavigationRule {
         this(new Xml(), new JavaAnnotation());
     }
 
+    @VisibleForTesting
     public NavigationRule(Xml from, JavaAnnotation to) {
         this.from = from;
         this.to = to;

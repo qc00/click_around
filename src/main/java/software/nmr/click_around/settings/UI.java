@@ -6,7 +6,6 @@ import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.cellvalidators.CellComponentProvider;
 import com.intellij.openapi.ui.cellvalidators.CellTooltipManager;
-import com.intellij.openapi.ui.cellvalidators.ValidatingTableCellRendererWrapper;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.ui.ToolbarDecorator;
 import com.intellij.ui.table.JBTable;
@@ -17,7 +16,6 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import javax.swing.table.JTableHeader;
 import java.awt.event.MouseEvent;
-import java.util.HashSet;
 
 public class UI implements Configurable {
 
@@ -69,14 +67,7 @@ public class UI implements Configurable {
 
     @SuppressWarnings("UnstableApiUsage")
     private void addValidation() {
-        for (int i = 0; i < NavigationRuleTableModel.COL_COUNT; i++) {
-            if (!NavigationRuleTableModel.needValidation(i)) continue;
-
-            var finalI = i;
-            var column = table.getColumnModel().getColumn(i);
-            column.setCellRenderer(new ValidatingTableCellRendererWrapper(table.getDefaultRenderer(String.class))
-                    .withCellValidator((value, row, viewCol) -> tableModel.validate(row, finalI)));
-        }
+        tableModel.addValidation(table);
 
         new CellTooltipManager(disposable)
                 .withCellComponentProvider(CellComponentProvider.forTable(table))
@@ -102,8 +93,7 @@ public class UI implements Configurable {
 
     @Override
     public boolean isModified() {
-        var state = settings.rules;
-        return tableModel.getRowCount() != state.size() || tableModel.stateView().stream().anyMatch(row -> !state.contains(row));
+        return tableModel.isModified();
     }
 
     @Override
@@ -111,14 +101,7 @@ public class UI implements Configurable {
         if (table == null) return;
         table.editingStopped(null);
 
-        var out = new HashSet<NavigationRule>();
-        for (var changed: tableModel.stateView()) {
-            var invalid = changed.from.firstInvalidField();
-            if (invalid == null) invalid = changed.to.firstInvalidField();
-            if (invalid != null) throw new ConfigurationException("Invalid valid in column " + invalid);
-            out.add(changed.copy());
-        }
-        settings.rules = out; // atomic
+        settings.rules = tableModel.getOut(); // atomic
         settings.notifyRules();
     }
 

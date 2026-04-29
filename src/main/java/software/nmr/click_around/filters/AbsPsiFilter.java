@@ -1,5 +1,6 @@
 package software.nmr.click_around.filters;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.intellij.DynamicBundle;
 import com.intellij.openapi.ui.ValidationInfo;
 import org.jetbrains.annotations.Nls;
@@ -9,22 +10,28 @@ import software.nmr.click_around.settings.NavigationRule;
 
 import java.beans.FeatureDescriptor;
 import java.beans.Introspector;
+import java.beans.PropertyDescriptor;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * Hold parameters to filter different kinds of {@link com.intellij.psi.PsiElement}s
- * and provides facilities for their configuration.
+ * A subclass will hold parameters to filter out specific kind(s)/aspect(s) of {@link com.intellij.psi.PsiElement}s
+ * and provide metadata for the configuration UI.
  * <p>
- * Must also follow IntelliJ {@code PersistentStateComponent} serialisation rules.
+ * This base implementation handles most of the Object contracts by abstracting all the filter parameters into the
+ * {@link #data} array. Subclasses must implement getters/setters following IntelliJ {@code PersistentStateComponent}
+ * serialisation rules.
  */
 public abstract class AbsPsiFilter<T> {
 
     public static class Descriptor {
         private final Class<?> cls;
         private final String prefix;
-        protected final String[] nlsKeys;
+        @VisibleForTesting
+        final String[] nlsKeys;
+        @VisibleForTesting
+        final PropertyDescriptor[] props;
         private final Class<?>[] columnClasses;
 
         /**
@@ -34,8 +41,8 @@ public abstract class AbsPsiFilter<T> {
             this.cls = cls;
             this.prefix = cls.getSimpleName() + ".";
             this.nlsKeys = nlsKeys;
+            this.props = new PropertyDescriptor[nlsKeys.length];
             this.columnClasses = new Class<?>[nlsKeys.length];
-            assert Arrays.stream(nlsKeys).allMatch(k -> k.startsWith(prefix));
         }
 
         public int getColumnCount() {
@@ -57,7 +64,8 @@ public abstract class AbsPsiFilter<T> {
                     var map = Arrays.stream(descs).collect(Collectors.toMap(FeatureDescriptor::getName, p -> p));
                     for (int i = 0; i < nlsKeys.length; i++) {
                         var propName = nlsKeys[i].substring(prefix.length());
-                        columnClasses[i] = map.get(propName).getReadMethod().getReturnType();
+                        var prop = props[i] = map.get(propName);
+                        columnClasses[i] = prop.getReadMethod().getReturnType();
                     }
                 } catch (Exception e) {
                     throw new IllegalStateException("Unable to inspect " + cls.getName(), e);
@@ -77,7 +85,7 @@ public abstract class AbsPsiFilter<T> {
     }
 
     //region Simple
-    protected T[] data;
+    protected final T[] data;
 
     @SafeVarargs
     protected AbsPsiFilter(T... data) {
@@ -110,7 +118,7 @@ public abstract class AbsPsiFilter<T> {
     //region NLS
     private static final String BUNDLE = "messages.filters";
     private static final DynamicBundle instance = new DynamicBundle(NavigationRule.class, BUNDLE);
-    protected static final ValidationInfo GENERIC_EMPTY = new  ValidationInfo(localise("*.empty"));
+    protected static final ValidationInfo GENERIC_EMPTY = new ValidationInfo(localise("*.empty"));
 
     public static @NotNull @Nls String localise(
             @NotNull @PropertyKey(resourceBundle = BUNDLE) String key, @NotNull Object... params) {

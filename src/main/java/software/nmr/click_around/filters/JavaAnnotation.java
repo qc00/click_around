@@ -1,5 +1,6 @@
 package software.nmr.click_around.filters;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.intellij.openapi.ui.ValidationInfo;
 import com.intellij.util.xmlb.annotations.Property;
 
@@ -14,8 +15,9 @@ public class JavaAnnotation extends AbsPsiFilter<String> {
         this("", "");
     }
 
-    public JavaAnnotation(String attr, String fqdn) {
-        super(attr, fqdn);
+    @VisibleForTesting
+    public JavaAnnotation(String fqn, String attr) {
+        super(fqn, attr);
     }
 
     @Override

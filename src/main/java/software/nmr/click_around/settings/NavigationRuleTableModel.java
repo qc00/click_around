@@ -1,14 +1,22 @@
 package software.nmr.click_around.settings;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.ui.ValidationInfo;
+import com.intellij.openapi.ui.cellvalidators.ValidatingTableCellRendererWrapper;
+import com.intellij.ui.table.JBTable;
 import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.NotNull;
 import software.nmr.click_around.filters.AbsPsiFilter.Descriptor;
 import software.nmr.click_around.filters.JavaAnnotation;
 import software.nmr.click_around.filters.Xml;
 
+import javax.swing.event.TableModelEvent;
 import javax.swing.table.AbstractTableModel;
+import javax.swing.table.TableColumnModel;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 public class NavigationRuleTableModel extends AbstractTableModel {
@@ -17,7 +25,9 @@ public class NavigationRuleTableModel extends AbstractTableModel {
     private static final int JAVA_START = XML.getColumnCount();
     private static final NavigationRule INVALID = new NavigationRule();
 
-    private final List<NavigationRule> rules;
+    @VisibleForTesting
+    final List<NavigationRule> rules;
+    private boolean modified;
 
     public NavigationRuleTableModel(Collection<NavigationRule> rules) {
         this.rules = new ArrayList<>(rules);
@@ -75,6 +85,29 @@ public class NavigationRuleTableModel extends AbstractTableModel {
         fireTableCellUpdated(rowIndex, columnIndex);
     }
 
+    @Override
+    public void fireTableChanged(TableModelEvent e) {
+        modified = true;
+        super.fireTableChanged(e);
+    }
+
+    boolean isModified() {
+        return modified;
+    }
+
+    @SuppressWarnings("UnstableApiUsage")
+    public void addValidation(JBTable jbTable) {
+        for (int i = 0; i < COL_COUNT; i++) {
+            TableColumnModel columnModel = jbTable.getColumnModel();
+            if (!needValidation(i)) continue;
+
+            var finalI = i;
+            var column = columnModel.getColumn(i);
+            column.setCellRenderer(new ValidatingTableCellRendererWrapper(jbTable.getDefaultRenderer(String.class))
+                    .withCellValidator((value, row, viewCol) -> validate(row, finalI)));
+        }
+    }
+
     public static boolean needValidation(int column) {
         var issue = column < JAVA_START ? INVALID.from.validateField(column) : INVALID.to.validateField(column - JAVA_START);
         return issue != null;
@@ -92,14 +125,19 @@ public class NavigationRuleTableModel extends AbstractTableModel {
     }
 
     public void removeRule(int rowIndex) {
-        if (rowIndex >= 0 && rowIndex < rules.size()) {
-            rules.remove(rowIndex);
-            fireTableRowsDeleted(rowIndex, rowIndex);
-        }
+        rules.remove(rowIndex);
+        fireTableRowsDeleted(rowIndex, rowIndex);
     }
 
-    /** Do not modify the collection. */
-    Collection<NavigationRule> stateView() {
-        return rules;
+    @NotNull
+    public LinkedHashSet<NavigationRule> getOut() throws ConfigurationException {
+        var out = new LinkedHashSet<NavigationRule>();
+        for (var changed : rules) {
+            var invalid = changed.from.firstInvalidField();
+            if (invalid == null) invalid = changed.to.firstInvalidField();
+            if (invalid != null) throw new ConfigurationException("Invalid valid in column " + invalid);
+            out.add(changed.copy());
+        }
+        return out;
     }
 }
