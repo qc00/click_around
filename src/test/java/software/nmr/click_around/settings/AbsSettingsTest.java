@@ -24,7 +24,7 @@ class AbsSettingsTest {
                 source.rules.add(wildcardTag("a"));
             }
 
-            target.loadState(source);
+            target.loadState(source.getState());
 
             assertEquals(target.rules, source.rules);
             assertTrue(target.ruleVersion.get() > vBefore);

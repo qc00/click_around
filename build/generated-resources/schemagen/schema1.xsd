@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+   <xsd:complexType name="javaAnnotation">
+      <xsd:annotation>
+         <xsd:documentation>
+            <![CDATA[Matches the named attribute's value in the named Java annotation.]]></xsd:documentation>
+      </xsd:annotation>
+      <xsd:complexContent>
+         <xsd:extension base="primary">
+            <xsd:sequence>
+               <xsd:choice maxOccurs="unbounded">
+                  <xsd:element minOccurs="0" name="path" type="pathFilter"/>
+                  <xsd:element minOccurs="0" name="super" type="javaSuperType"/>
+               </xsd:choice>
+            </xsd:sequence>
+            <xsd:attribute name="attr" type="xsd:string" use="required"/>
+            <xsd:attribute name="fqn" type="xsd:string" use="required"/>
+         </xsd:extension>
+      </xsd:complexContent>
+   </xsd:complexType>
+   <xsd:complexType name="javaSuperType">
+      <xsd:annotation>
+         <xsd:documentation>
+            <![CDATA[Checks the containing class is {@code instanceof} at least one class name in {@link #fqns}.]]></xsd:documentation>
+      </xsd:annotation>
+      <xsd:sequence/>
+      <xsd:attribute name="fqns" use="required">
+         <xsd:simpleType>
+            <xsd:list itemType="xsd:string"/>
+         </xsd:simpleType>
+      </xsd:attribute>
+   </xsd:complexType>
+   <xsd:complexType name="pathFilter">
+      <xsd:annotation>
+         <xsd:documentation><![CDATA[Checks the containing file against a glob/regex pattern.]]></xsd:documentation>
+      </xsd:annotation>
+      <xsd:sequence/>
+      <xsd:attribute name="pattern" type="xsd:string" use="required"/>
+   </xsd:complexType>
+   <xsd:complexType abstract="true" name="primary">
+      <xsd:annotation>
+         <xsd:documentation><![CDATA[A Primary filter locate exact {@link com.intellij.psi.PsiElement}s that are conceptually single token/symbols.
+<p>
+When used as the navigation source, matching is handled by the {@linkplain software.nmr.click_around.handlers.RulesIndex external index} this contributes to.<br>
+When used as the destination, {@link #search} is normally called.]]></xsd:documentation>
+      </xsd:annotation>
+   </xsd:complexType>
+   <xsd:complexType abstract="true" name="secondary">
+      <xsd:annotation>
+         <xsd:documentation>
+            <![CDATA[Only used to filter the output of {@link Primary} filters. Typically, because these filters are too coarse.]]></xsd:documentation>
+      </xsd:annotation>
+   </xsd:complexType>
+   <xsd:complexType name="xml">
+      <xsd:annotation>
+         <xsd:documentation><![CDATA[Matches XML element <em>name</em> or attribute <em>value</em>, i.e. currently doesn't support matching against
+attribute name.]]></xsd:documentation>
+      </xsd:annotation>
+      <xsd:complexContent>
+         <xsd:extension base="primary">
+            <xsd:sequence>
+               <xsd:element minOccurs="0" name="ns" type="xsd:string"/>
+               <xsd:choice maxOccurs="unbounded">
+                  <xsd:element minOccurs="0" name="path" type="pathFilter"/>
+               </xsd:choice>
+            </xsd:sequence>
+            <xsd:attribute name="attr" type="xsd:string" use="required"/>
+            <xsd:attribute name="tag" type="xsd:string" use="required"/>
+         </xsd:extension>
+      </xsd:complexContent>
+   </xsd:complexType>
+   <xsd:complexType name="rules">
+      <xsd:sequence>
+         <xsd:element maxOccurs="unbounded" minOccurs="0" name="rule" type="navigationRule"/>
+      </xsd:sequence>
+   </xsd:complexType>
+   <xsd:complexType name="navigationRule">
+      <xsd:annotation>
+         <xsd:documentation><![CDATA[Matches a set of {@link #definition}s against a set of {@link #usage}s, with the relationship between them specified
+in {@link #type}.]]></xsd:documentation>
+      </xsd:annotation>
+      <xsd:sequence>
+         <xsd:element name="definition">
+            <xsd:complexType>
+               <xsd:sequence>
+                  <xsd:choice maxOccurs="unbounded">
+                     <xsd:element name="JavaAnnotation" type="javaAnnotation"/>
+                     <xsd:element name="Xml" type="xml"/>
+                  </xsd:choice>
+               </xsd:sequence>
+            </xsd:complexType>
+         </xsd:element>
+         <xsd:element name="usage">
+            <xsd:complexType>
+               <xsd:sequence>
+                  <xsd:choice maxOccurs="unbounded">
+                     <xsd:element name="JavaAnnotation" type="javaAnnotation"/>
+                     <xsd:element name="Xml" type="xml"/>
+                  </xsd:choice>
+               </xsd:sequence>
+            </xsd:complexType>
+         </xsd:element>
+      </xsd:sequence>
+      <xsd:attribute name="type" type="navigationType" use="required">
+         <xsd:annotation>
+            <xsd:documentation><![CDATA[Pick one of the candidate values to see its documentation]]></xsd:documentation>
+         </xsd:annotation>
+      </xsd:attribute>
+   </xsd:complexType>
+   <xsd:element name="rules" type="rules"/>
+   <xsd:simpleType name="navigationType">
+      <xsd:restriction base="xsd:string">
+         <xsd:enumeration value="TO_DEFINITION">
+            <xsd:annotation>
+               <xsd:documentation><![CDATA[One way jump from usage to definition. Does not contribute to definition's "find usage".
+<p>
+Note: if this plug-in found a match, the IDE will not look for other jump destinations (built-in or from
+other plug-ins).]]></xsd:documentation>
+            </xsd:annotation>
+         </xsd:enumeration>
+         <xsd:enumeration value="TWO_WAY">
+            <xsd:annotation>
+               <xsd:documentation>
+                  <![CDATA[Jump back and forth between usage and definition. Same caveats as the one-way {@link #TO_DEFINITION}.]]></xsd:documentation>
+            </xsd:annotation>
+         </xsd:enumeration>
+         <xsd:enumeration value="USAGE_CONTRIBUTION">
+            <xsd:annotation>
+               <xsd:documentation>
+                  <![CDATA[Uses a different API from the other two, which {@code usage}]]></xsd:documentation>
+            </xsd:annotation>
+         </xsd:enumeration>
+      </xsd:restriction>
+   </xsd:simpleType>
+</xsd:schema>

@@ -23,7 +23,8 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 /**
- * Matches XML element <em>name</em> or attribute <em>values</em>, i.e. currently no  to match the
+ * Matches XML element <em>name</em> or attribute <em>value</em>, i.e. currently doesn't support matching against
+ * attribute name.
  */
 public class Xml extends Primary {
     public interface SecondaryTag extends Secondary {

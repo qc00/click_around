@@ -7,8 +7,6 @@ import software.nmr.click_around.filters.JavaAnnotation;
 import software.nmr.click_around.filters.Xml;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static software.nmr.click_around.handlers.RulesIndexAccessor.getJavaAnno;
-import static software.nmr.click_around.handlers.RulesIndexAccessor.getXml;
 
 class ProjectSettingsTest extends SettingsTestBase {
 
@@ -24,8 +22,8 @@ class ProjectSettingsTest extends SettingsTestBase {
         setupAppAndProjectRules();
 
         var index = project.buildRulesIndex();
-        assertNotNull(getXml(index).get("ns").get("appTag"), "app rule should be in index");
-        assertNotNull(getXml(index).get("ns").get("projTag"), "project rule should be in index");
+        assertNotNull(index.xml.get("ns").get("appTag"), "app rule should be in index");
+        assertNotNull(index.xml.get("ns").get("projTag"), "project rule should be in index");
     }
 
     @ParameterizedTest
@@ -40,7 +38,7 @@ class ProjectSettingsTest extends SettingsTestBase {
 
         var index2 = project.buildRulesIndex();
         assertNotSame(index1, index2, "bumping version must cause recompute");
-        assertNull(getXml(index2).get("ns").get(remove), "cleared rules should disappear from new index");
+        assertNull(index2.xml.get("ns").get(remove), "cleared rules should disappear from new index");
     }
 
     @Test
@@ -65,17 +63,17 @@ class ProjectSettingsTest extends SettingsTestBase {
 
         var incoming = new ProjectSettings();
         incoming.rules.add(new NavigationRule(new Xml("ns", "new", ""), new JavaAnnotation("com.New", "val")));
-        project.loadState(incoming);
+        project.loadState(incoming.getState());
 
         var index2 = project.buildRulesIndex();
         assertNotSame(index1, index2);
-        assertNotNull(getXml(index2).get("ns").get("new"));
+        assertNotNull(index2.xml.get("ns").get("new"));
     }
 
     @Test
     void emptyRulesProduceEmptyIndex() {
         var index = project.buildRulesIndex();
-        assertTrue(getXml(index).isEmpty());
-        assertTrue(getJavaAnno(index).isEmpty());
+        assertTrue(index.xml.isEmpty());
+        assertTrue(index.javaAnnotation.isEmpty());
     }
 }

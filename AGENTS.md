@@ -4,3 +4,5 @@
     `/Volumes/References/intellij-community`
 
 * Run `./gradlew unitTest` for plain JVM unit tests with JaCoCo coverage
+* To see the generated XML Schema (used for validation), run `./gradlew schemagen`. The result goes to
+  `build/generated-resources/schemagen/schema1.xsd`

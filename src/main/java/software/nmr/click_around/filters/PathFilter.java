@@ -10,11 +10,7 @@ import java.nio.file.FileSystems;
 import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
 
-/**
- * Checks the element's containing file against a glob/regex pattern.
- *
- * @see java.nio.file.FileSystem#getPathMatcher(String) for syntax
- */
+/** Checks the containing file against a glob/regex pattern. */
 public class PathFilter implements JavaAnnotation.SecondaryTag, Xml.SecondaryTag {
     private static final Logger LOG = Logger.getInstance(PathFilter.class);
 
@@ -26,6 +22,7 @@ public class PathFilter implements JavaAnnotation.SecondaryTag, Xml.SecondaryTag
         return pattern;
     }
 
+    /** See {@link java.nio.file.FileSystem#getPathMatcher(String)} for syntax */
     public void setPattern(String pattern) {
         this.pattern = pattern;
         this.matcher = FileSystems.getDefault().getPathMatcher(pattern);

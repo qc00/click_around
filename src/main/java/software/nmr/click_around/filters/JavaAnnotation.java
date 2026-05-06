@@ -19,7 +19,7 @@ import software.nmr.click_around.handlers.TargetHolder;
 import java.util.Set;
 
 /**
- * Matches attribute value(s) in Java annotations.
+ * Matches the named attribute's value in the named Java annotation.
  */
 public class JavaAnnotation extends Primary {
 
@@ -38,7 +38,7 @@ public class JavaAnnotation extends Primary {
     }
 
     /**
-     * Fully qualified name of the Java annotation to match. Required.
+     * Fully qualified name of the Java annotation. Required.
      */
     @XmlAttribute(required = true)
     public String getFqn() {
@@ -50,7 +50,8 @@ public class JavaAnnotation extends Primary {
     }
 
     /**
-     * Annotation attribute containing the target symbol name. Use "value" for the default attribute.
+     * Name of the annotation attribute whose value matches the wanted string.<br/>
+     * Use {@code "value"} for the default attribute.
      */
     @XmlAttribute(required = true)
     public String getAttr() {

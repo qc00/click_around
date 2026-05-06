@@ -1,7 +1,7 @@
 plugins {
     id("java")
+    id("org.jetbrains.intellij.platform") version "2.10.5"
     jacoco
-    alias(libs.plugins.intellijPlatform)
 }
 
 group = "software.nmr"
@@ -36,6 +36,8 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     // The IntelliJ Platform's test runner setup imports JUnit 4 classes, so:
     testRuntimeOnly("org.junit.vintage:junit-vintage-engine")
+
+    implementation("org.eclipse.persistence:org.eclipse.persistence.moxy:5.0.0")
 }
 
 intellijPlatform {
@@ -50,9 +52,61 @@ intellijPlatform {
     }
 }
 
+val schemagenOutDir = layout.buildDirectory.dir("generated-resources/schemagen")
+sourceSets {
+    main {
+        resources {
+            srcDir(schemagenOutDir)
+        }
+    }
+}
+
 tasks {
     wrapper {
         gradleVersion = providers.gradleProperty("gradleVersion").get()
+    }
+
+    val schemagenWorkDir = layout.buildDirectory.dir("jaxb2")
+
+    val schemagen by registering(JavaExec::class) {
+        description = "Generates XSD schemas via Moxy"
+        group = "build"
+        mainClass.set("software.nmr.click_around.settings.AbsSettings")
+        args(schemagenOutDir.get().toString())
+
+        classpath = sourceSets.main.get().output + sourceSets.main.get().compileClasspath
+
+        val outDir = schemagenOutDir
+        inputs.files(sourceSets.main.get().allJava, sourceSets.main.get().compileClasspath)
+        outputs.dir(outDir)
+
+        doLast {
+            check(outDir.get().asFile.walk().any { it.isFile && it.extension == "xsd" && it.length() > 0L }) {
+                "Expected $name to generate at least one XSD in $outDir."
+            }
+        }
+    }
+
+    val schemadoc by registering(Exec::class) {
+        description = "Use maven plug-in to add docs"
+        group = "build"
+        workingDir = projectDir
+        val cp = sourceSets.main.get().compileClasspath
+        val outDir = schemagenOutDir  // Copy locally for config caching serialization
+
+        inputs.files(sourceSets.main.get().allJava, cp)
+        outputs.dir(schemagenWorkDir)
+        outputs.dir(outDir)
+
+        doFirst {
+            schemagenWorkDir.get().asFile.deleteRecursively()
+            commandLine(
+                "/usr/bin/env", "mvn",
+                "jaxb2:schemagen",
+                "-Dschemagen.existingSchema=${outDir.get()}",
+                "-Djaxb.classpathOverride=${cp.asPath}"
+            )
+        }
     }
 
     test {

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<rules xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:noNamespaceSchemaLocation="file:///Users/bc/Coding/click_around/build/generated-resources/schemagen/schema1.xsd">
+    <rule type="TO_DEFINITION">
+        <definition>
+            <JavaAnnotation attr="" fqn="">
+
+            </JavaAnnotation>
+            <JavaAnnotation attr="" fqn="">
+
+            </JavaAnnotation>
+        </definition>
+        <usage>
+            <Xml tag="myTag" attr=""/>
+        </usage>
+    </rule>
+</rules>

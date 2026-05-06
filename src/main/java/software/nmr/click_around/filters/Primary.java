@@ -37,8 +37,9 @@ public abstract class Primary {
     }
 
     /**
-     * Because JAXB SchemaGenerator doesn't support interfaces, implementation should override with a
-     * {@link jakarta.xml.bind.annotation.XmlElements @XmlElements} to list all the {@code SecondaryTag} impls.
+     * Additional filter(s) used in conjunction with {@code this}.
+     * @implNote Because JAXB SchemaGenerator doesn't support interfaces, implementation must override with a
+     * {@link jakarta.xml.bind.annotation.XmlElements @XmlElements} to list all the supported types.
      */
     public abstract Set<? extends Secondary> getSecondaries();
 

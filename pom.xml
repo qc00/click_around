@@ -1,0 +1,39 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- This POM is for calling the amazing plug-in below only  -->
+    <!-- The main project is built using gradle since JetBrains don't support Maven -->
+
+    <groupId>software.nmr</groupId>
+    <artifactId>click_around-schemagen</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+
+    <properties>
+        <maven.compiler.release>21</maven.compiler.release>
+    </properties>
+
+    <build>
+        <directory>build</directory>
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>jaxb2-maven-plugin</artifactId>
+                <version>SNAPSHOT</version>
+                <!-- https://www.mojohaus.org/jaxb2-maven-plugin/schemagen-mojo.html -->
+                <configuration>
+                    <workDirectory>build/jaxb2
+                    </workDirectory> <!-- This is where the stale marker file goes, so reuse to allow deleting them together -->
+                    <encoding>UTF-8</encoding>
+                    <sources>
+                        <source>src/main/java/software/nmr/click_around/filters</source>
+                        <source>src/main/java/software/nmr/click_around/settings/AppSettings.java</source>
+                        <source>src/main/java/software/nmr/click_around/settings/NavigationRule.java</source>
+                        <!-- Not including ProjectSettings because its @XmlRootElement will confuse schemagen -->
+                    </sources>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

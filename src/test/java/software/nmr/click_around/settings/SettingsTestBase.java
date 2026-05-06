@@ -31,6 +31,10 @@ abstract class SettingsTestBase {
     }
 
     public static @NotNull AppSettings roundTrip(AppSettings s) {
-        return XmlSerializer.deserialize(XmlSerializer.serialize(s), AppSettings.class);
+        // Tests both IntelliJ & our own serialization
+        var serialized = XmlSerializer.serialize(s.getState());
+        var out = new AppSettings();
+        out.loadState(XmlSerializer.deserialize(serialized, AbsSettings.State.class));
+        return out;
     }
 }

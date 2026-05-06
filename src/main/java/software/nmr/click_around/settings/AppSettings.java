@@ -8,7 +8,7 @@ import com.intellij.openapi.components.Storage;
 
 @Service(Service.Level.APP)
 @State(name = "nmr.ClickAroundAppSettings", storages = @Storage("clickAround.xml"))
-public final class AppSettings extends AbsSettings<AppSettings> {
+public final class AppSettings extends AbsSettings {
 
     @VisibleForTesting
     static AppSettings testOverride;

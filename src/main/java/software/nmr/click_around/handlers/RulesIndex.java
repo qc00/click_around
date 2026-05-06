@@ -31,6 +31,7 @@ public class RulesIndex {
     public record DirectionalRule(Primary from, Set<Primary> to) {
     }
 
+    /** Efficiently holds one Rule (the common case) without a whole backing HashTable */
     public static class DRSet extends ForwardingSet<DirectionalRule> {
         private @NotNull Set<DirectionalRule> actual;
 
@@ -67,7 +68,6 @@ public class RulesIndex {
             }
             return this;
         }
-
     }
 
     public static class NsTagAttrIndex extends WildcardIndex<WildcardIndex<WildcardIndex<DRSet>>> {
@@ -88,8 +88,8 @@ public class RulesIndex {
     public static class AttrFqnIndex extends HashMap<String, HashMap<String, DRSet>> {
     }
 
-    @VisibleForTesting final NsTagAttrIndex xml;
-    @VisibleForTesting final AttrFqnIndex javaAnnotation = new AttrFqnIndex();
+    @VisibleForTesting public final NsTagAttrIndex xml;
+    @VisibleForTesting public final AttrFqnIndex javaAnnotation = new AttrFqnIndex();
 
     public RulesIndex(Stream<NavigationRule> rules) {
         ArrayList<DRSet> forXml = new ArrayList<>();
