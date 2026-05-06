@@ -1,4 +1,4 @@
-package software.nmr.click_around.settings;
+package software.nmr.click_around.handlers;
 
 import com.google.common.collect.Collections2;
 import org.junit.jupiter.api.Test;
@@ -6,21 +6,26 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import software.nmr.click_around.filters.JavaAnnotation;
 import software.nmr.click_around.filters.Xml;
+import software.nmr.click_around.handlers.RulesIndex.DRSet;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class WildcardIndexTest {
-    static final NavigationRule[] RULES = {
-            new NavigationRule(new Xml("", "tag", "x"), new JavaAnnotation("com.A", "value")),
-            new NavigationRule(new Xml("ns", "tag", "*"), new JavaAnnotation("com.B", "name")),
-            new NavigationRule(new Xml("*", "other", ""), new JavaAnnotation("com.C", "x"))};
+    static final DRSet[] RULES = {
+            DRSet.of(new Xml("", "tag", "x"), new JavaAnnotation("com.A", "value")),
+            DRSet.of(new Xml("ns", "tag", "*"), new JavaAnnotation("com.B", "name")),
+            DRSet.of(new Xml("*", "other", ""), new JavaAnnotation("com.C", "x"))};
 
-    static final WildcardIndex<WildcardIndex<WildcardIndex<JavaAnnotation>>> INDEXED =
-            ProjectSettings.XML_INDEXER.index(Arrays.stream(RULES));
+    static final WildcardIndex<WildcardIndex<WildcardIndex<DRSet>>> INDEXED =
+            RulesIndex.XML_INDEXER.index(Arrays.stream(RULES));
 
-    static Collection<List<NavigationRule>> permutations() {
+    static Collection<List<DRSet>> permutations() {
         return Collections2.permutations(Arrays.asList(RULES));
     }
 
@@ -28,15 +33,15 @@ class WildcardIndexTest {
 
     @ParameterizedTest
     @MethodSource("permutations")
-    void permutationsIndexTheSame(List<NavigationRule> rules) {
-        assertEquals(INDEXED, ProjectSettings.XML_INDEXER.index(rules.stream()));
+    void permutationsIndexTheSame(List<DRSet> rules) {
+        assertEquals(INDEXED, RulesIndex.XML_INDEXER.index(rules.stream()));
     }
 
     @Test
     void exactGet() {
-        assertEquals(RULES[0].to, INDEXED.get("").get("tag").get("x"));
-        assertEquals(RULES[1].to, INDEXED.get("ns").get("tag").get("*"));
-        assertEquals(RULES[2].to, INDEXED.get("*").get("other").get(""));
+        assertEquals(RULES[0], INDEXED.get("").get("tag").get("x"));
+        assertEquals(RULES[1], INDEXED.get("ns").get("tag").get("*"));
+        assertEquals(RULES[2], INDEXED.get("*").get("other").get(""));
     }
 
     @Test
@@ -56,7 +61,7 @@ class WildcardIndexTest {
             assertEquals(0, out.size());
 
             l2.lookup("asdf", out::add);
-            assertEquals(Set.of(RULES[1].to), out);
+            assertEquals(Set.of(RULES[1]), out);
         }));
     }
 

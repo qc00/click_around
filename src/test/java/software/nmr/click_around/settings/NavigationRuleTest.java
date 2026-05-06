@@ -1,29 +1,16 @@
 package software.nmr.click_around.settings;
 
-import com.intellij.util.xmlb.XmlSerializer;
-import org.jdom.Element;
 import org.junit.jupiter.api.Test;
 import software.nmr.click_around.filters.JavaAnnotation;
 import software.nmr.click_around.filters.Xml;
 
-import static org.junit.jupiter.api.Assertions.*;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static software.nmr.click_around.settings.SettingsTestBase.exampleRule;
 
 class NavigationRuleTest {
-
-    @Test
-    void copyIsDeep() {
-        var rule = exampleRule();
-        var copy = rule.copy();
-
-        assertEquals(rule, copy);
-        assertNotSame(rule, copy);
-        assertNotSame(rule.from, copy.from);
-        assertNotSame(rule.to, copy.to);
-
-        copy.from.setTag("OTHER");
-        assertNotEquals(rule, copy);
-    }
 
     @Test
     void equalsAndHashCodeAreContentBased() {
@@ -35,24 +22,32 @@ class NavigationRuleTest {
         assertNotEquals(new Object(), a);
         assertNotEquals(null, a);
 
-        assertNotEquals(a, new NavigationRule(a.from, new JavaAnnotation("4", "7")));
-        assertNotEquals(a, new NavigationRule(new Xml("1", "2", "2"), b.to));
+        assertNotEquals(a, new NavigationRule(a.usage, Set.of(new JavaAnnotation("4", "7"))));
+        assertNotEquals(a, new NavigationRule(Set.of(new Xml("1", "2", "2")), b.definition));
     }
 
     @Test
-    void defaultConstructorMakesEmptyRule() {
-        NavigationRule rule = new NavigationRule();
-        assertEquals(new Xml(), rule.from);
-        assertEquals(new JavaAnnotation(), rule.to);
+    void equalsAndHashCodeIncludeAllCandidates() {
+        var a = new NavigationRule(
+                Set.of(new Xml("u1", "u2", "u3"), new JavaAnnotation("u4", "u5")),
+                Set.of(new Xml("d1", "d2", "d3"), new JavaAnnotation("d4", "d5")));
+        var b = new NavigationRule(
+                Set.of(new Xml("u1", "u2", "u3"), new JavaAnnotation("u4", "u5")),
+                Set.of(new Xml("d1", "d2", "d3"), new JavaAnnotation("d4", "d5")));
+
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+        assertNotEquals(a, new NavigationRule(Set.of(a.usage.iterator().next()), a.definition));
     }
 
     @Test
     void navigationRuleSerializes() {
         NavigationRule rule = exampleRule();
+        var settings = new AppSettings();
+        settings.rules.add(rule);
 
-        Element xml = XmlSerializer.serialize(rule);
-        NavigationRule restored = XmlSerializer.deserialize(xml, NavigationRule.class);
+        var restored = SettingsTestBase.roundTrip(settings);
 
-        assertEquals(rule, restored);
+        assertEquals(settings.rules, restored.rules);
     }
 }

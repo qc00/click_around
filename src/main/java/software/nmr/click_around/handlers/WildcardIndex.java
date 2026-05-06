@@ -1,9 +1,11 @@
-package software.nmr.click_around.settings;
+package software.nmr.click_around.handlers;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -15,22 +17,32 @@ public class WildcardIndex<V> extends HashMap<String, V> {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     public static class MultiLevelIndexer<In, Out> {
-        private final ArrayList<Function<In, String>> indexers  = new ArrayList<>();
-        private final Function<In, Out> finalValue;
+        private Supplier finalOutSupplier;
+        private final BinaryOperator merger;
+        private final ArrayList<Function<In, String>> indexers = new ArrayList<>();
 
-        public MultiLevelIndexer(Function<In, Out> finalValue){
-            this.finalValue = finalValue;
+        public MultiLevelIndexer(BinaryOperator<In> merger) {
+            this.merger = merger;
         }
 
         public MultiLevelIndexer<In, WildcardIndex<Out>> addLevel(Function<In, String> indexer) {
+            assert finalOutSupplier == null : "Cannot add more levels when finalOutSupplier is already set";
             indexers.add(indexer);
             return (MultiLevelIndexer<In, WildcardIndex<Out>>) this;
         }
 
+        /** Sets the final type via supplier. */
+        public <FinalOut extends Out> MultiLevelIndexer<In, FinalOut> withOutput(Supplier<FinalOut> finalOutSupplier) {
+            this.finalOutSupplier = finalOutSupplier;
+            return (MultiLevelIndexer<In, FinalOut>) this;
+        }
+
         public Out index(Stream<In> source) {
-            Collector<In, ?, WildcardIndex> collector = Collectors.toMap(indexers.getLast(), finalValue, (a, b) -> a, WildcardIndex::new);
+            Collector<In, ?, WildcardIndex> collector = Collectors.toMap(indexers.getLast(), x -> x, merger,
+                    WildcardIndex::new);
             for (int i = indexers.size() - 2; i >= 0; i--) {
-                collector = Collectors.groupingBy(indexers.get(i), WildcardIndex::new, collector);
+                collector = Collectors.groupingBy(indexers.get(i), i == 0 ? finalOutSupplier : WildcardIndex::new,
+                        collector);
             }
             return (Out) source.collect(collector);
         }
