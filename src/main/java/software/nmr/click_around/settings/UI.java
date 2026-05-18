@@ -1,42 +1,35 @@
 package software.nmr.click_around.settings;
 
+import com.intellij.lang.xml.XMLLanguage;
 import com.intellij.openapi.Disposable;
+import com.intellij.openapi.editor.event.DocumentEvent;
+import com.intellij.openapi.editor.event.DocumentListener;
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.ui.cellvalidators.CellComponentProvider;
-import com.intellij.openapi.ui.cellvalidators.CellTooltipManager;
 import com.intellij.openapi.util.Disposer;
-import com.intellij.ui.ToolbarDecorator;
-import com.intellij.ui.table.JBTable;
+import com.intellij.ui.EditorTextField;
+import com.intellij.ui.LanguageTextField;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
-import javax.swing.table.JTableHeader;
-import java.awt.event.MouseEvent;
 
-public class UI implements Configurable {
+public class UI implements Configurable, DocumentListener {
 
-    private final AbsSettings<?> settings;
-    private final NavigationRuleTableModel tableModel;
-    private final Disposable disposable = Disposer.newDisposable();
-    private JBTable table;
+    final AbsSettings settings;
+
+    private final Disposable disposable = Disposer.newDisposable("Click Around settings editor");
+    EditorTextField widget;
+    volatile boolean changed;
 
     public UI() {
         settings = AppSettings.getInstance();
-        tableModel = new NavigationRuleTableModel(settings.rules);
     }
 
     public UI(Project project) {
         settings = ProjectSettings.getInstance(project);
-        tableModel = new NavigationRuleTableModel(settings.rules);
-    }
-
-    @Override
-    public void reset() {
-        tableModel.reset(settings.rules);
     }
 
     @Nls(capitalization = Nls.Capitalization.Title)
@@ -45,70 +38,55 @@ public class UI implements Configurable {
         return "Click Around";
     }
 
-    private void createTable() {
-        table = new JBTable(tableModel) {
-            @Override
-            protected @NotNull JTableHeader createDefaultTableHeader() {
-                return new JTableHeader(columnModel) {
-                    @Override
-                    public String getToolTipText(MouseEvent event) {
-                        int viewColumn = columnAtPoint(event.getPoint());
-                        if (viewColumn < 0) return null;
-
-                        int modelColumn = columnModel.getColumn(viewColumn).getModelIndex();
-                        return tableModel.getColumnTooltip(modelColumn);
-                    }
-                };
-            }
-        };
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        table.putClientProperty("terminateEditOnFocusLost", Boolean.TRUE);
-    }
-
-    @SuppressWarnings("UnstableApiUsage")
-    private void addValidation() {
-        tableModel.addValidation(table);
-
-        new CellTooltipManager(disposable)
-                .withCellComponentProvider(CellComponentProvider.forTable(table))
-                .installOn(table);
+    @Override
+    public @Nullable JComponent createComponent() {
+        if (widget == null) {
+            SettingsSchema.registerSchema();
+            // The "project" here is unrelated to any argument that may be passed to the constructor
+            widget = new LanguageTextField(XMLLanguage.INSTANCE, SettingsSchema.PROJECT, settings.getState().xml,
+                    false);
+            widget.setDisposedWith(disposable);
+            widget.addDocumentListener(this);
+        }
+        return widget;
     }
 
     @Override
-    public @Nullable JComponent createComponent() {
-        createTable();
-        addValidation();
+    public void documentChanged(@NotNull DocumentEvent event) {
+        changed = true;
+    }
 
-        var mainPanel = ToolbarDecorator.createDecorator(table)
-                .setAddAction(button -> tableModel.addRule())
-                .setRemoveAction(button -> {
-                    int selectedRow = table.getSelectedRow();
-                    if (selectedRow >= 0) {
-                        tableModel.removeRule(selectedRow);
-                    }
-                })
-                .createPanel();
-        return mainPanel;
+    @Override
+    public void reset() {
+        if (changed && widget != null) {
+            widget.setText(settings.getState().xml);
+        }
+        changed = false;
     }
 
     @Override
     public boolean isModified() {
-        return tableModel.isModified();
+        return changed;
     }
 
     @Override
     public void apply() throws ConfigurationException {
-        if (table == null) return;
-        table.editingStopped(null);
-
-        settings.rules = tableModel.getOut(); // atomic
-        settings.notifyRules();
+        try {
+            var xml = widget.getText();
+            SettingsSchema.validate(xml);
+            var exception = settings.setRules(xml);
+            if (exception != null) throw new ConfigurationException(exception.getMessage(), exception, "Invalid XML");
+            changed = false;
+        } catch (Exception e) {
+            throw new ConfigurationException(e.getMessage(), e, "Cannot Apply");
+        }
     }
 
     @Override
     public void disposeUIResources() {
-        table = null;
         Disposer.dispose(disposable);
+        widget = null;
+        changed = false;
     }
 }
 

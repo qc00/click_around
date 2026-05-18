@@ -48,4 +48,28 @@ class AbsSettingsTest {
         var restored = roundTrip(s);
         assertEquals(s.rules, restored.rules);
     }
+
+    @Test
+    void schemaValidationRejectsMissingRequiredRuleContent() {
+        var invalid = """
+                <rules>
+                    <rule type="TO_DEFINITION"/>
+                </rules>""";
+
+        assertThrows(Exception.class, () -> SettingsSchema.validate(invalid));
+    }
+
+    @Test
+    void schemaValidationAcceptsGeneratedSettingsXml() {
+        var settings = new AppSettings();
+        settings.rules.add(exampleRule());
+
+        assertDoesNotThrow(() -> SettingsSchema.validate(settings.getState().xml));
+    }
+
+    private static AbsSettings.State state(String xml) {
+        var state = new AbsSettings.State();
+        state.xml = xml;
+        return state;
+    }
 }

@@ -1,3 +1,5 @@
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+
 plugins {
     id("java")
     id("org.jetbrains.intellij.platform") version "2.10.5"
@@ -28,14 +30,13 @@ dependencies {
 
         // Add plugin dependencies for compilation here:
         bundledPlugin("com.intellij.java")
+        testFramework(TestFrameworkType.Platform)
     }
 
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("org.junit.jupiter:junit-jupiter-params")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    // The IntelliJ Platform's test runner setup imports JUnit 4 classes, so:
-    testRuntimeOnly("org.junit.vintage:junit-vintage-engine")
 
     implementation("org.eclipse.persistence:org.eclipse.persistence.moxy:5.0.0")
 }
@@ -74,7 +75,8 @@ tasks {
         mainClass.set("software.nmr.click_around.settings.AbsSettings")
         args(schemagenOutDir.get().toString())
 
-        classpath = sourceSets.main.get().output + sourceSets.main.get().compileClasspath
+        dependsOn(compileJava)
+        classpath = sourceSets.main.get().output.classesDirs + sourceSets.main.get().compileClasspath
 
         val outDir = schemagenOutDir
         inputs.files(sourceSets.main.get().allJava, sourceSets.main.get().compileClasspath)
@@ -85,6 +87,10 @@ tasks {
                 "Expected $name to generate at least one XSD in $outDir."
             }
         }
+    }
+
+    processResources {
+        dependsOn(schemagen)
     }
 
     val schemadoc by registering(Exec::class) {
@@ -127,6 +133,7 @@ tasks {
         testClassesDirs = testOut.classesDirs
         classpath = testOut + main + configurations["testRuntimeClasspath"] +
                 configurations["compileClasspath"]
+        exclude("**/*IdeTest*.class")
 
         finalizedBy(jacocoTestReport)
     }
