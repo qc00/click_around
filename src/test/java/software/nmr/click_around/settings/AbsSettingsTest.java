@@ -67,9 +67,66 @@ class AbsSettingsTest {
         assertDoesNotThrow(() -> SettingsSchema.validate(settings.getState().xml));
     }
 
-    private static AbsSettings.State state(String xml) {
+    @Test
+    void loadStateWithInvalidXmlSetsErrorComment() {
+        var target = new AppSettings();
         var state = new AbsSettings.State();
-        state.xml = xml;
-        return state;
+        state.xml = "<not-valid-root/>";
+        target.loadState(state);
+
+        assertTrue(target.rules.isEmpty());
+        assertTrue(target.getState().xml.contains("Config unmarshalling failed"));
+        assertTrue(target.getState().xml.contains("<not-valid-root/>"));
+    }
+
+    @Test
+    void loadStateIgnoresNullOrEmptyXml() {
+        var target = new AppSettings();
+        target.rules.add(exampleRule());
+        int vBefore = target.ruleVersion.get();
+
+        var emptyState = new AbsSettings.State();
+        emptyState.xml = null;
+        target.loadState(emptyState);
+        assertEquals(1, target.rules.size(), "null xml should not change rules");
+
+        emptyState.xml = "";
+        target.loadState(emptyState);
+        assertEquals(1, target.rules.size(), "empty xml should not change rules");
+    }
+
+    @Test
+    void setRulesWithEmptyStringClearsRules() {
+        var target = new AppSettings();
+        target.rules.add(exampleRule());
+        target.notifyRules();
+
+        var result = target.setRules("   ");
+        assertNull(result);
+        assertTrue(target.rules.isEmpty());
+    }
+
+    @Test
+    void setRulesReturnsExceptionOnInvalidXml() {
+        var target = new AppSettings();
+        var result = target.setRules("<invalid/>");
+        assertNotNull(result);
+    }
+
+    @Test
+    void getStateGeneratesXmlOnFirstAccess() {
+        var s = new AppSettings();
+        s.rules.add(exampleRule());
+        var state = s.getState();
+        assertNotNull(state.xml);
+        assertTrue(state.xml.contains("rules"));
+    }
+
+    @Test
+    void notifyRulesIncrementsVersion() {
+        var s = new AppSettings();
+        int v1 = s.ruleVersion.get();
+        s.notifyRules();
+        assertTrue(s.ruleVersion.get() > v1);
     }
 }

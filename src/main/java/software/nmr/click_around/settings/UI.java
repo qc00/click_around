@@ -1,12 +1,15 @@
 package software.nmr.click_around.settings;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.intellij.lang.xml.XMLLanguage;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.editor.event.DocumentEvent;
 import com.intellij.openapi.editor.event.DocumentListener;
+import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.ui.EditorTextField;
 import com.intellij.ui.LanguageTextField;
@@ -15,9 +18,12 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import java.util.stream.Stream;
 
 public class UI implements Configurable, DocumentListener {
 
+    @VisibleForTesting
+    Project project;
     final AbsSettings settings;
 
     private final Disposable disposable = Disposer.newDisposable("Click Around settings editor");
@@ -29,6 +35,7 @@ public class UI implements Configurable, DocumentListener {
     }
 
     public UI(Project project) {
+        this.project = project;
         settings = ProjectSettings.getInstance(project);
     }
 
@@ -41,10 +48,19 @@ public class UI implements Configurable, DocumentListener {
     @Override
     public @Nullable JComponent createComponent() {
         if (widget == null) {
-            SettingsSchema.registerSchema();
-            // The "project" here is unrelated to any argument that may be passed to the constructor
-            widget = new LanguageTextField(XMLLanguage.INSTANCE, SettingsSchema.PROJECT, settings.getState().xml,
-                    false);
+            var myProj = project;
+            if (myProj == null) {
+                // Try to find a valid project, so the text editor log less warnings:
+                var pm = ProjectManager.getInstance();
+                myProj = Stream.of(pm.getOpenProjects()).filter(project -> !project.isDisposed()).findFirst()
+                               .orElse(null);
+            }
+            widget = new LanguageTextField(XMLLanguage.INSTANCE, myProj, settings.getState().xml,
+                    SettingsSchema.DOC_CREATOR, false) {
+                protected @NotNull EditorEx createEditor() {
+                    return SettingsDocumentation.install(super.createEditor(), disposable);
+                }
+            };
             widget.setDisposedWith(disposable);
             widget.addDocumentListener(this);
         }
@@ -89,4 +105,3 @@ public class UI implements Configurable, DocumentListener {
         changed = false;
     }
 }
-

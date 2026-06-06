@@ -7,7 +7,7 @@ import org.junit.jupiter.api.BeforeEach;
 import software.nmr.click_around.filters.JavaAnnotation;
 import software.nmr.click_around.filters.Xml;
 
-abstract class SettingsTestBase {
+public abstract class SettingsTestBase {
     AppSettings app;
     ProjectSettings project;
 

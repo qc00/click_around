@@ -2,6 +2,7 @@ import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 
 plugins {
     id("java")
+    kotlin("jvm") version "2.1.21" // For IDE integration tests only
     id("org.jetbrains.intellij.platform") version "2.10.5"
     jacoco
 }
@@ -23,22 +24,45 @@ repositories {
     }
 }
 
+val schemagenOutDir = layout.buildDirectory.dir("generated-resources/schemagen")
+sourceSets {
+    main {
+        resources {
+            srcDir(schemagenOutDir)
+        }
+    }
+    create("integrationTest") {
+        compileClasspath += sourceSets.main.get().output
+        runtimeClasspath += sourceSets.main.get().output
+    }
+}
+
+val integrationTestImplementation by configurations.getting {
+    extendsFrom(configurations.testImplementation.get())
+}
+
 // Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
 dependencies {
     intellijPlatform {
         intellijIdea(providers.gradleProperty("platformVersion"))
 
-        // Add plugin dependencies for compilation here:
         bundledPlugin("com.intellij.java")
         testFramework(TestFrameworkType.Platform)
+        testFramework(TestFrameworkType.JUnit5)
+        testFramework(TestFrameworkType.Starter, configurationName = "integrationTestImplementation")
     }
 
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("org.junit.jupiter:junit-jupiter-params")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-
+    add("integrationTestRuntimeOnly", "org.junit.platform:junit-platform-launcher")
     implementation("org.eclipse.persistence:org.eclipse.persistence.moxy:5.0.0")
+
+    integrationTestImplementation("org.kodein.di:kodein-di-jvm:7.20.2")
+    integrationTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.1")
+    // Force kotlin-stdlib to match kotlin-reflect from the Starter framework (2.2.x adds KParameter.Kind.CONTEXT)
+    integrationTestImplementation("org.jetbrains.kotlin:kotlin-stdlib:2.2.20")
 }
 
 intellijPlatform {
@@ -53,12 +77,13 @@ intellijPlatform {
     }
 }
 
-val schemagenOutDir = layout.buildDirectory.dir("generated-resources/schemagen")
-sourceSets {
-    main {
-        resources {
-            srcDir(schemagenOutDir)
-        }
+val integrationTest by intellijPlatformTesting.testIdeUi.registering {
+    task {
+        val integrationTestSourceSet = sourceSets.getByName("integrationTest")
+        testClassesDirs = integrationTestSourceSet.output.classesDirs
+        classpath = integrationTestSourceSet.runtimeClasspath
+        useJUnitPlatform()
+        systemProperty("platform.version", providers.gradleProperty("platformVersion").get())
     }
 }
 
@@ -89,13 +114,10 @@ tasks {
         }
     }
 
-    processResources {
-        dependsOn(schemagen)
-    }
-
     val schemadoc by registering(Exec::class) {
         description = "Use maven plug-in to add docs"
         group = "build"
+        dependsOn(schemagen)
         workingDir = projectDir
         val cp = sourceSets.main.get().compileClasspath
         val outDir = schemagenOutDir  // Copy locally for config caching serialization
@@ -113,6 +135,10 @@ tasks {
                 "-Djaxb.classpathOverride=${cp.asPath}"
             )
         }
+    }
+
+    processResources {
+        dependsOn(schemadoc)
     }
 
     test {
@@ -133,7 +159,7 @@ tasks {
         testClassesDirs = testOut.classesDirs
         classpath = testOut + main + configurations["testRuntimeClasspath"] +
                 configurations["compileClasspath"]
-        exclude("**/*IdeTest*.class")
+        exclude("**/*IT.class")
 
         finalizedBy(jacocoTestReport)
     }
@@ -141,10 +167,6 @@ tasks {
     jacocoTestReport {
         dependsOn(unitTest)
         executionData.setFrom(layout.buildDirectory.file("jacoco/unitTest.exec"))
-        // The unitTest task runs against `build/classes/java/main`, not the IntelliJ-instrumented
-        // bytecode, so JaCoCo's hash-based class lookup must match those originals.
-        // UI and PSI handlers need a running IDE to exercise meaningfully; they are excluded
-        // from coverage to keep the metric focused on the unit-testable domain logic.
         classDirectories.setFrom(
             fileTree(layout.buildDirectory.dir("classes/java/main")) {
                 include("**/*.class")

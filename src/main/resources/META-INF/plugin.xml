@@ -37,6 +37,9 @@
 
         <gotoDeclarationHandler
                 implementation="software.nmr.click_around.handlers.GotoHandler"/>
+
+        <xml.schemaProvider
+                implementation="software.nmr.click_around.settings.SettingsSchema"/>
     </extensions>
     
 </idea-plugin>
