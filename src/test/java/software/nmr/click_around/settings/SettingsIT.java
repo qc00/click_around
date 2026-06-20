@@ -38,7 +38,7 @@ class SettingsIT {
     @BeforeEach
     void setUp() throws Exception {
         var factory = IdeaTestFixtureFactory.getFixtureFactory();
-        var builder = factory.createLightFixtureBuilder(null, "UIIdeTest");
+        var builder = factory.createFixtureBuilder("UIIdeTest"); // Can't use light
         fixture = factory.createCodeInsightFixture(builder.getFixture());
         fixture.setUp();
         AppSettings.testOverride = new AppSettings();
@@ -99,17 +99,30 @@ class SettingsIT {
     }
 
     @Test
-    void settingsDocumentationFindsSchemaDocumentation() {
+    void settingsDocumentationFindsSchemaDocumentation() throws Exception {
         ui = createUi();
         ui.widget.setText(VALID_XML);
         var editor = ui.widget.getEditor(true);
         assertNotNull(editor);
 
-        editor.getCaretModel().moveToOffset(ui.widget.getText().indexOf("TO_DEFINITION"));
-        var html = SettingsDocumentation.documentationHtml(editor);
+        var html = SettingsDocumentation.documentationHtml(editor, ui.widget.getText().indexOf("TO_DEFINITION"));
 
         assertNotNull(html);
         assertTrue(html.contains("One way jump from usage to definition"), html);
+    }
+
+    @Test
+    void settingsDocumentationFindsSchemaDocumentationForXmlAttributeName() throws Exception {
+        ui = createUi();
+        ui.widget.setText(VALID_XML);
+        var editor = ui.widget.getEditor(true);
+        assertNotNull(editor);
+
+        var html = SettingsDocumentation.documentationHtml(editor, ui.widget.getText().indexOf("tag=\"tag\"") + 2);
+
+        assertNotNull(html);
+        assertTrue(html.contains("XML tag name to match"), html);
+        assertFalse(html.contains("Complex type"), html);
     }
 
     @Test

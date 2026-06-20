@@ -3,7 +3,7 @@ import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 plugins {
     id("java")
     kotlin("jvm") version "2.1.21" // For IDE integration tests only
-    id("org.jetbrains.intellij.platform") version "2.10.5"
+    id("org.jetbrains.intellij.platform") version "2.16.0"
     jacoco
 }
 
@@ -52,12 +52,13 @@ dependencies {
         testFramework(TestFrameworkType.Starter, configurationName = "integrationTestImplementation")
     }
 
-    testImplementation(platform("org.junit:junit-bom:5.11.4"))
+    implementation("org.eclipse.persistence:org.eclipse.persistence.moxy:5.0.0")
+
+    testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("org.junit.jupiter:junit-jupiter-params")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    add("integrationTestRuntimeOnly", "org.junit.platform:junit-platform-launcher")
-    implementation("org.eclipse.persistence:org.eclipse.persistence.moxy:5.0.0")
+    testImplementation("org.junit.platform:junit-platform-launcher")
+    testRuntimeOnly("junit:junit:4.13.2") // https://youtrack.jetbrains.com/issue/IJPL-159134/
 
     integrationTestImplementation("org.kodein.di:kodein-di-jvm:7.20.2")
     integrationTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.1")
@@ -142,41 +143,17 @@ tasks {
     }
 
     test {
-        failOnNoDiscoveredTests = false
-    }
-
-    // The IntelliJ Platform plugin heavily customises the standard `test` task to bootstrap
-    // a sandboxed IDE, which (a) is unnecessary for our pure POJO tests and (b) prevents the
-    // JaCoCo agent from observing class loads. Provide a dedicated, plain JVM unit-test task
-    // that runs the JUnit 5 tests against the unmodified compiled classes.
-    val unitTest by registering(Test::class) {
-        description = "Runs plain JVM unit tests for the click_around plugin sources."
-        group = "verification"
         useJUnitPlatform()
-
-        val main = sourceSets["main"].output
-        val testOut = sourceSets["test"].output
-        testClassesDirs = testOut.classesDirs
-        classpath = testOut + main + configurations["testRuntimeClasspath"] +
-                configurations["compileClasspath"]
-        exclude("**/*IT.class")
-
-        finalizedBy(jacocoTestReport)
     }
 
-    jacocoTestReport {
-        dependsOn(unitTest)
-        executionData.setFrom(layout.buildDirectory.file("jacoco/unitTest.exec"))
-        classDirectories.setFrom(
-            fileTree(layout.buildDirectory.dir("classes/java/main")) {
-                include("**/*.class")
-            }
-        )
-        sourceDirectories.setFrom(files("src/main/java"))
-        reports {
-            xml.required = true
-            html.required = true
+    withType<Test> {
+        configure<JacocoTaskExtension> {
+            isIncludeNoLocationClasses = true
+            excludes = listOf("jdk.internal.*")
         }
     }
 
+    jacocoTestReport {
+        classDirectories.setFrom(instrumentCode)
+    }
 }

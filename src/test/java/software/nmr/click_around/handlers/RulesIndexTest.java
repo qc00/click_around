@@ -7,7 +7,8 @@ import software.nmr.click_around.settings.NavigationRule;
 
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static software.nmr.click_around.settings.SettingsTestBase.exampleRule;
 
 class RulesIndexTest {
@@ -20,9 +21,8 @@ class RulesIndexTest {
         rule.type = NavigationRule.NavigationType.TWO_WAY;
         var index = new RulesIndex(Stream.of(rule));
 
-        assertNotNull(index.xml.get("ns").get("src"), "forward direction should be indexed");
-        assertFalse(index.javaAnnotation.isEmpty(), "reverse direction should be indexed");
-        assertNotNull(index.javaAnnotation.get("val").get("com.x.Y"));
+        assertNotNull(index.xml.get("ns").get("tag"), "forward direction should be indexed");
+        assertNotNull(index.javaAnnotation.get("value").get("com.x.Y"));
     }
 
     @Test
@@ -70,9 +70,9 @@ class RulesIndexTest {
 
         var index = new RulesIndex(Stream.of(r1, r2));
 
-        var attrMap = index.javaAnnotation.get("value");
+        var attrMap = index.javaAnnotation.get("v");
         assertNotNull(attrMap);
-        var drSet = attrMap.get("com.X");
+        var drSet = attrMap.get("c.A");
         assertNotNull(drSet);
         assertEquals(2, drSet.size());
     }

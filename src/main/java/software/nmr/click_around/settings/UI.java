@@ -18,9 +18,12 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 public class UI implements Configurable, DocumentListener {
+
+    private static final Pattern EMPTY_ROOT = Pattern.compile("<(\\w+)/>");
 
     @VisibleForTesting
     Project project;
@@ -55,7 +58,7 @@ public class UI implements Configurable, DocumentListener {
                 myProj = Stream.of(pm.getOpenProjects()).filter(project -> !project.isDisposed()).findFirst()
                                .orElse(null);
             }
-            widget = new LanguageTextField(XMLLanguage.INSTANCE, myProj, settings.getState().xml,
+            widget = new LanguageTextField(XMLLanguage.INSTANCE, myProj, xmlOrDefaultTemplate(),
                     SettingsSchema.DOC_CREATOR, false) {
                 protected @NotNull EditorEx createEditor() {
                     var editor = super.createEditor();
@@ -69,6 +72,13 @@ public class UI implements Configurable, DocumentListener {
         return widget;
     }
 
+    private @NotNull String xmlOrDefaultTemplate() {
+        var xml = settings.getState().xml;
+        var m = EMPTY_ROOT.matcher(xml);
+        if (m.matches()) xml = String.format("<%1$s>\n\n</%1$s>", m.group(1));
+        return xml;
+    }
+
     @Override
     public void documentChanged(@NotNull DocumentEvent event) {
         changed = true;
@@ -77,7 +87,7 @@ public class UI implements Configurable, DocumentListener {
     @Override
     public void reset() {
         if (changed && widget != null) {
-            widget.setText(settings.getState().xml);
+            widget.setText(xmlOrDefaultTemplate());
         }
         changed = false;
     }
@@ -102,8 +112,8 @@ public class UI implements Configurable, DocumentListener {
 
     @Override
     public void disposeUIResources() {
+        widget = null; // Null out first to avoid project leak after Disposal
         Disposer.dispose(disposable);
-        widget = null;
         changed = false;
     }
 }
