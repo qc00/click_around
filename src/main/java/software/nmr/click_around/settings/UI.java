@@ -58,7 +58,9 @@ public class UI implements Configurable, DocumentListener {
             widget = new LanguageTextField(XMLLanguage.INSTANCE, myProj, settings.getState().xml,
                     SettingsSchema.DOC_CREATOR, false) {
                 protected @NotNull EditorEx createEditor() {
-                    return SettingsDocumentation.install(super.createEditor(), disposable);
+                    var editor = super.createEditor();
+                    new SettingsDocumentation(editor, disposable);
+                    return editor;
                 }
             };
             widget.setDisposedWith(disposable);

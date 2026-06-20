@@ -2,13 +2,16 @@ package software.nmr.click_around.settings;
 
 import com.intellij.codeInsight.CodeInsightSettings;
 import com.intellij.ide.BrowserUtil;
-import com.intellij.lang.documentation.ide.IdeDocumentationTargetProvider;
+import com.intellij.lang.LanguageDocumentation;
+import com.intellij.lang.documentation.CompositeDocumentationProvider;
+import com.intellij.lang.xml.XMLLanguage;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CustomShortcutSet;
 import com.intellij.openapi.actionSystem.IdeActions;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.event.EditorMouseEvent;
@@ -18,60 +21,99 @@ import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.ui.popup.JBPopup;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.util.Disposer;
-import com.intellij.platform.backend.documentation.DocumentationData;
 import com.intellij.psi.util.PsiUtilBase;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.util.Alarm;
+import com.intellij.util.Alarm.ThreadToUse;
+import com.intellij.util.concurrency.AppExecutorUtil;
 import com.intellij.util.ui.JBUI;
+import com.intellij.xml.util.documentation.XmlDocumentationProvider;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import javax.swing.*;
 import javax.swing.event.HyperlinkEvent;
+import java.util.concurrent.ExecutorService;
 
 /**
- * Mostly vibe-coded replacement of the built-in doc display logic which doesn't work in a modal dialogue.
+ * Mostly replacement of the built-in doc display logic which doesn't work in a modal dialogue.
  */
-@SuppressWarnings({"UnstableApiUsage", "OverrideOnly", "TestOnlyProblems"})
-public class SettingsDocumentation {
+public class SettingsDocumentation implements EditorMouseMotionListener {
 
-    public static <E extends Editor> E install(E editor, Disposable parentDisposable) {
+    private static final ExecutorService BACKGROUND = AppExecutorUtil.getAppExecutorService();
+    static XmlDocumentationProvider xmlDocProvider;
+
+    private final Editor editor;
+    private final Alarm alarm;
+    private JBPopup popup;
+    private int requestedOffset = -1;
+
+    public SettingsDocumentation(Editor editor, Disposable parentDisposable) {
+        this.editor = editor;
+        alarm = new Alarm(ThreadToUse.POOLED_THREAD, parentDisposable);
+
+        if (getDocProvider() == null) return; // Don't register listeners
+
+        // Override keyboard short-cut
         var quickDoc = ActionManager.getInstance().getAction(IdeActions.ACTION_QUICK_JAVADOC);
         var shortcutSet = quickDoc == null ? CustomShortcutSet.fromString("F1") : quickDoc.getShortcutSet();
-        new DocumentationAction(editor).registerCustomShortcutSet(
+        this.new DocumentationAction().registerCustomShortcutSet(
                 shortcutSet,
                 editor.getContentComponent(),
                 parentDisposable
         );
 
+        // Mouse hover
         EditorMouseHoverPopupControl.disablePopups(editor);
         Disposer.register(parentDisposable, () -> EditorMouseHoverPopupControl.enablePopups(editor));
-        editor.addEditorMouseMotionListener(new HoverDocumentation(editor, parentDisposable), parentDisposable);
-        return editor;
+        editor.addEditorMouseMotionListener(this, parentDisposable);
     }
 
-    static @Nullable String documentationHtml(Editor editor) {
+    private static XmlDocumentationProvider getDocProvider() {
+        if (xmlDocProvider == null) {
+            var docProvider = LanguageDocumentation.INSTANCE.forLanguage(XMLLanguage.INSTANCE);
+            if (docProvider instanceof CompositeDocumentationProvider composite) {
+                for (var provider: composite.getProviders()) {
+                    if (provider instanceof XmlDocumentationProvider xml) {
+                        xmlDocProvider = xml;
+                        break;
+                    }
+                }
+            } else if (docProvider instanceof XmlDocumentationProvider xml) {
+                xmlDocProvider = xml;
+            }
+        }
+        return xmlDocProvider;
+    }
+
+    private void show() {
+        if (editor.isDisposed() || requestedOffset < 0) return;
+        if (popup != null) popup.cancel();
+
+        ReadAction.nonBlocking(() -> documentationHtml(editor, requestedOffset))
+                  .finishOnUiThread(ModalityState.any(), html -> popup = showPopUp(editor, html))
+                  .submit(BACKGROUND);
+    }
+
+    // All logic that should not run on the UI thread
+    @VisibleForTesting
+    static @Nullable String documentationHtml(Editor editor, int offset) {
         var project = editor.getProject();
         if (project == null || project.isDisposed()) return null;
-        var offset = editor.getCaretModel().getOffset();
+        var psiFile = PsiUtilBase.getPsiFileInEditor(editor, project);
+        if (psiFile == null) return null;
 
-        return ReadAction.compute(() -> {
-            if (project.isDisposed()) return null;
-            var psiFile = PsiUtilBase.getPsiFileInEditor(editor, project);
-            if (psiFile == null) return null;
-            var targets = IdeDocumentationTargetProvider.getInstance(project)
-                                                        .documentationTargets(editor, psiFile, offset);
-            for (var target: targets) {
-                var result = target.computeDocumentation();
-                if (result instanceof DocumentationData data) return data.getHtml();
-            }
-            return null;
-        });
+        // Simplified logic of IdeDocumentationTargetProvider:
+        var targetAndSource = LegacyDocumentationTargetFinder.getTarget(project, editor, offset, psiFile);
+        if (targetAndSource == null) return null;
+        // Logic of PsiElementDocumentationTarget:
+        return xmlDocProvider.generateDoc(targetAndSource.first, targetAndSource.first);
     }
 
-    private static JBPopup show(Editor editor) {
-        var html = documentationHtml(editor);
-        if (html == null || html.isBlank()) html = "No documentation found.";
+    // Can only contain UI drawing logic
+    private static JBPopup showPopUp(Editor editor, String html) {
+        if (html == null || html.isBlank()) return null;
 
         var pane = new JEditorPane("text/html", renderHtml(html));
         pane.setEditable(false);
@@ -109,63 +151,41 @@ public class SettingsDocumentation {
                 : "<html><body>" + rendered + "</body></html>";
     }
 
-    private static final class DocumentationAction extends DumbAwareAction {
-        private final Editor editor;
-
-        private DocumentationAction(Editor editor) {
-            this.editor = editor;
-        }
+    private class DocumentationAction extends DumbAwareAction {
 
         @Override
         public void actionPerformed(@NotNull AnActionEvent event) {
-            show(editor);
+            cancelPending();
+            requestedOffset = editor.getCaretModel().getOffset();
+            show();
         }
 
         @Override
         public @NotNull ActionUpdateThread getActionUpdateThread() {
-            return ActionUpdateThread.EDT;
+            return ActionUpdateThread.BGT;
         }
+
     }
 
-    private static final class HoverDocumentation implements EditorMouseMotionListener {
-        private final Editor editor;
-        private final Alarm alarm;
-        private JBPopup popup;
-        private int requestedOffset = -1;
-        private int shownOffset = -1;
-
-        private HoverDocumentation(Editor editor, Disposable parentDisposable) {
-            this.editor = editor;
-            alarm = new Alarm(Alarm.ThreadToUse.SWING_THREAD, parentDisposable);
-        }
-
-        @Override
-        public void mouseMoved(@NotNull EditorMouseEvent event) {
-            if (!event.isOverText()) {
-                cancelPending();
-                return;
-            }
-
-            event.consume();
-            var offset = event.getOffset();
-            if (offset == shownOffset && popup != null && popup.isVisible()) return;
-
+    @Override
+    public void mouseMoved(@NotNull EditorMouseEvent event) {
+        if (!event.isOverText()) {
             cancelPending();
-            requestedOffset = offset;
-            alarm.addRequest(() -> {
-                if (editor.isDisposed() || requestedOffset < 0) return;
-                if (popup != null) popup.cancel();
-                popup = show(editor);
-                shownOffset = requestedOffset;
-            }, CodeInsightSettings.getInstance().JAVADOC_INFO_DELAY);
+            return;
         }
 
-        private void cancelPending() {
-            requestedOffset = -1;
-            alarm.cancelAllRequests();
-            if (popup != null && popup.isVisible()) popup.cancel();
-            popup = null;
-            shownOffset = -1;
-        }
+        var offset = event.getOffset();
+        if (offset == requestedOffset && popup != null && popup.isVisible()) return;
+
+        cancelPending();
+        requestedOffset = offset;
+        alarm.addRequest(this::show, CodeInsightSettings.getInstance().JAVADOC_INFO_DELAY);
+    }
+
+    private void cancelPending() {
+        requestedOffset = -1;
+        alarm.cancelAllRequests();
+        if (popup != null && popup.isVisible()) popup.cancel();
+        popup = null;
     }
 }
